@@ -1,0 +1,254 @@
+{
+  "name": "Growatt Моніторинг (Базовий)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "cron-node",
+      "name": "Кожні 5 хв",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://server.growatt.com/loginApi.do",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userName\": \"{{$env.SHINEPHONE_LOGIN}}\",\n  \"password\": \"{{$env.SHINEPHONE_PASSWORD}}\"\n}",
+        "options": {}
+      },
+      "id": "growatt-login",
+      "name": "Growatt Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getPlantList",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"Growatt Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-plant-list",
+      "name": "Отримати Plant ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getDevicesByPlant?plantId={{$json[\"data\"][0][\"plantId\"]}}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"Growatt Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-devices",
+      "name": "Отримати Device ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/newInverterApi/getInverterDetailData_two?plantId={{$node[\"Отримати Plant ID\"].json[\"data\"][0][\"plantId\"]}}&deviceSn={{$json[\"data\"][0][\"deviceSn\"]}}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"Growatt Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "growatt-data",
+      "name": "Growatt Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "=*Growatt Онлайн* 🇺🇦\n\n🔋 *Батарея:* {{$json[\"data\"][\"batteryPercent\"]}}% ({{$json[\"data\"][\"vBat\"]}} В)\n⚡️ *Потужність:* {{$json[\"data\"][\"pCharge\"] > 100 ? \"⬆️ Заряд \" : \"⬇️ Розряд \"}}{{Math.abs($json[\"data\"][\"pCharge\"]/1000).toFixed(2)}} кВт\n🔌 *Мережа:* {{$json[\"data\"][\"vAc\"]}} В\n☀️ *Сонце:* {{($json[\"data\"][\"ppv\"]/1000).toFixed(1)}} кВт\n🌡 *Температура:* {{$json[\"data\"][\"tempBat\"]}}°C\n\n📅 {{$now.format('DD.MM.YYYY HH:mm')}}",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "telegram-status",
+      "name": "Telegram Статус",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1340, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "{{$env.TELEGRAM_CREDENTIAL_ID}}",
+          "name": "Growatt Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "battery-low",
+              "leftValue": "={{$json[\"data\"][\"batteryPercent\"]}}",
+              "rightValue": 28,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-battery",
+      "name": "SOC <28%?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "=⚠️ *УВАГА! БАТАРЕЯ НИЗЬКА:* {{$json[\"data\"][\"batteryPercent\"]}}%\n\n🔋 Залишилось ~{{(19 * $json[\"data\"][\"batteryPercent\"] / 100).toFixed(1)}} кВт·год\n⚡️ Поточний розряд: {{Math.abs($json[\"data\"][\"pCharge\"]/1000).toFixed(2)}} кВт\n⏰ Залишилось ~{{(19 * $json[\"data\"][\"batteryPercent\"] / 100 / Math.abs($json[\"data\"][\"pCharge\"]/1000)).toFixed(1)}} годин\n\n💡 *Вмикай економ-режим!*",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "telegram-alarm",
+      "name": "Тривога",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "{{$env.TELEGRAM_CREDENTIAL_ID}}",
+          "name": "Growatt Bot"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Кожні 5 хв": {
+      "main": [
+        [
+          {
+            "node": "Growatt Login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Growatt Login": {
+      "main": [
+        [
+          {
+            "node": "Отримати Plant ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отримати Plant ID": {
+      "main": [
+        [
+          {
+            "node": "Отримати Device ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отримати Device ID": {
+      "main": [
+        [
+          {
+            "node": "Growatt Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Growatt Data": {
+      "main": [
+        [
+          {
+            "node": "Telegram Статус",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SOC <28%?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SOC <28%?": {
+      "main": [
+        [
+          {
+            "node": "Тривога",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "growatt-basic"
+  },
+  "id": "growatt_basic",
+  "tags": []
+}
