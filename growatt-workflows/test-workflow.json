@@ -1,0 +1,269 @@
+{
+  "name": "🧪 Тест Growatt підключення",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Запустити вручну",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://server.growatt.com/loginApi.do",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userName\": \"{{$env.SHINEPHONE_LOGIN}}\",\n  \"password\": \"{{$env.SHINEPHONE_PASSWORD}}\"\n}",
+        "options": {}
+      },
+      "id": "test-login",
+      "name": "✅ Тест 1: Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "login-success",
+              "leftValue": "={{$json[\"result\"]}}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-login",
+      "name": "Login успішний?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getPlantList",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"✅ Тест 1: Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "test-plant",
+      "name": "✅ Тест 2: Plant List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getDevicesByPlant?plantId={{$json[\"data\"][0][\"plantId\"]}}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"✅ Тест 1: Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "test-devices",
+      "name": "✅ Тест 3: Device List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/newInverterApi/getInverterDetailData_two?plantId={{$node[\"✅ Тест 2: Plant List\"].json[\"data\"][0][\"plantId\"]}}&deviceSn={{$json[\"data\"][0][\"deviceSn\"]}}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"✅ Тест 1: Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "test-data",
+      "name": "✅ Тест 4: Inverter Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json.data;\nconst plantInfo = $node[\"✅ Тест 2: Plant List\"].json.data[0];\nconst deviceInfo = $node[\"✅ Тест 3: Device List\"].json.data[0];\n\nreturn {\n  json: {\n    success: true,\n    message: \"🎉 ВСІ ТЕСТИ ПРОЙДЕНО УСПІШНО!\",\n    growatt_info: {\n      plant_id: plantInfo.plantId,\n      plant_name: plantInfo.plantName,\n      device_sn: deviceInfo.deviceSn,\n      device_type: deviceInfo.deviceType\n    },\n    current_status: {\n      battery: data.batteryPercent + \"%\",\n      voltage: data.vBat + \" В\",\n      power: (data.pCharge/1000).toFixed(2) + \" кВт\",\n      solar: (data.ppv/1000).toFixed(1) + \" кВт\",\n      grid: data.vAc + \" В\",\n      temperature: data.tempBat + \"°C\"\n    },\n    next_step: \"Активуй основний workflow! Все готово! ✅\"\n  }\n};"
+      },
+      "id": "format-result",
+      "name": "Форматувати результат",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.item.json;\n\nreturn {\n  json: {\n    success: false,\n    error: \"❌ ПОМИЛКА LOGIN\",\n    details: error,\n    solution: [\n      \"1. Перевір SHINEPHONE_LOGIN (має бути email)\",\n      \"2. Перевір SHINEPHONE_PASSWORD\",\n      \"3. Спробуй перетворити пароль в MD5\",\n      \"4. Перевір, чи працює логін на server.growatt.com\"\n    ]\n  }\n};"
+      },
+      "id": "format-error",
+      "name": "❌ Помилка Login",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "=🧪 *ТЕСТ ПІДКЛЮЧЕННЯ GROWATT*\n\n{{$json[\"success\"] ? \"✅ УСПІХ!\" : \"❌ ПОМИЛКА\"}}\n\n{{$json[\"success\"] ? \n  \"📊 *Інформація:*\\n\" +\n  \"• Plant ID: \" + $json[\"growatt_info\"][\"plant_id\"] + \"\\n\" +\n  \"• Plant: \" + $json[\"growatt_info\"][\"plant_name\"] + \"\\n\" +\n  \"• Device: \" + $json[\"growatt_info\"][\"device_sn\"] + \"\\n\\n\" +\n  \"🔋 *Поточний статус:*\\n\" +\n  \"• Батарея: \" + $json[\"current_status\"][\"battery\"] + \"\\n\" +\n  \"• Напруга: \" + $json[\"current_status\"][\"voltage\"] + \"\\n\" +\n  \"• Потужність: \" + $json[\"current_status\"][\"power\"] + \"\\n\" +\n  \"• Сонце: \" + $json[\"current_status\"][\"solar\"] + \"\\n\" +\n  \"• Мережа: \" + $json[\"current_status\"][\"grid\"] + \"\\n\" +\n  \"• Температура: \" + $json[\"current_status\"][\"temperature\"] + \"\\n\\n\" +\n  \"✅ *\" + $json[\"next_step\"] + \"*\"\n  :\n  \"❌ *Помилка:* \" + $json[\"error\"] + \"\\n\\n\" +\n  \"🔧 *Рішення:*\\n\" +\n  $json[\"solution\"].map((s, i) => (i+1) + \". \" + s).join(\"\\n\")\n}}",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "send-test-result",
+      "name": "📱 Відправити результат",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1780, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "{{$env.TELEGRAM_CREDENTIAL_ID}}",
+          "name": "Growatt Bot"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Запустити вручну": {
+      "main": [
+        [
+          {
+            "node": "✅ Тест 1: Login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Тест 1: Login": {
+      "main": [
+        [
+          {
+            "node": "Login успішний?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login успішний?": {
+      "main": [
+        [
+          {
+            "node": "✅ Тест 2: Plant List",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ Помилка Login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Тест 2: Plant List": {
+      "main": [
+        [
+          {
+            "node": "✅ Тест 3: Device List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Тест 3: Device List": {
+      "main": [
+        [
+          {
+            "node": "✅ Тест 4: Inverter Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Тест 4: Inverter Data": {
+      "main": [
+        [
+          {
+            "node": "Форматувати результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Форматувати результат": {
+      "main": [
+        [
+          {
+            "node": "📱 Відправити результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ Помилка Login": {
+      "main": [
+        [
+          {
+            "node": "📱 Відправити результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "growatt-test"
+  },
+  "id": "growatt_test",
+  "tags": []
+}
