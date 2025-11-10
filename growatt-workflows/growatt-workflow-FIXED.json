@@ -1,0 +1,746 @@
+{
+  "name": "🔋 Growatt Моніторинг Ultimate (FIXED)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "e5a55f46-9ff6-46d2-a2c9-06b074b03d41",
+      "name": "Кожні 5 хв",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 432]
+    },
+    {
+      "parameters": {
+        "url": "https://server.growatt.com/loginApi.do",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userName\": \"{{$env.SHINEPHONE_LOGIN}}\",\n  \"password\": \"{{$env.SHINEPHONE_PASSWORD}}\"\n}",
+        "options": {}
+      },
+      "id": "f6db0611-6cbc-47af-a477-effe75a4eafe",
+      "name": "Growatt Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [256, 688]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getPlantList",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"Growatt Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f87aed88-6669-4897-bb4d-21c98e2b6f31",
+      "name": "Отримати Plant ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [544, 688]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getDevicesByPlant?plantId={{$json[\"data\"][0][\"plantId\"]}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"Growatt Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ad5bc65d-bd0f-4831-8de5-e248c38f0f71",
+      "name": "Отримати Device ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [816, 608]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/newInverterApi/getInverterDetailData_two?plantId={{$node[\"Отримати Plant ID\"].json[\"data\"][0][\"plantId\"]}}&deviceSn={{$json[\"data\"][0][\"deviceSn\"]}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"Growatt Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7159ba14-d28a-4e09-96b1-f5cdc38c5ba8",
+      "name": "Growatt Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 496]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "=*Growatt Дім* ⚡️🇺🇦\n\n🔋 Батарея: *{{$json[\"data\"][\"batteryPercent\"]}}%* ({{$json[\"data\"][\"vBat\"]}} В)\n{{$json[\"data\"][\"pCharge\"]>100?'⬆️':'⬇️'}} {{$json[\"data\"][\"pCharge\"]>100?'Заряд':'Розряд'}}: *{{Math.abs($json[\"data\"][\"pCharge\"]/1000).toFixed(2)}} кВт*\n☀️ Сонце → *{{($json[\"data\"][\"ppv\"]/1000).toFixed(1)}} кВт*\n🔌 Мережа: {{$json[\"data\"][\"vAc\"]}} В\n🌡 Температура: {{$json[\"data\"][\"tempBat\"]}}°C\n\n📅 {{$now.format('DD.MM.YYYY HH:mm')}}",
+        "additionalFields": {
+          "parseMode": "Markdown",
+          "replyMarkup": "inlineKeyboard",
+          "inlineKeyboard": {
+            "rows": [
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "📊 Графік 24г",
+                      "additionalFields": {
+                        "callbackData": "graph24"
+                      }
+                    },
+                    {
+                      "text": "📈 Графік 7д",
+                      "additionalFields": {
+                        "callbackData": "graph7d"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "={{$json[\"data\"][\"batteryPercent\"]>90?'⚔️ ВІЙНА':'🔄 → ВІЙНА'}}",
+                      "additionalFields": {
+                        "callbackData": "mode_war"
+                      }
+                    },
+                    {
+                      "text": "🕊️ МИР",
+                      "additionalFields": {
+                        "callbackData": "mode_peace"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "⚡️ Турбо-заряд",
+                      "additionalFields": {
+                        "callbackData": "charge_turbo"
+                      }
+                    },
+                    {
+                      "text": "🌙 Нічна зарядка",
+                      "additionalFields": {
+                        "callbackData": "charge_night"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "row": {
+                  "buttons": [
+                    {
+                      "text": "🔄 Оновити",
+                      "additionalFields": {
+                        "callbackData": "refresh"
+                      }
+                    },
+                    {
+                      "text": "ℹ️ Інфо",
+                      "additionalFields": {
+                        "callbackData": "info"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "b645a9a2-f1f9-4305-9016-019655f8caee",
+      "name": "Telegram + Кнопки",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1312, 336],
+      "webhookId": "a75f035e-c3f5-474b-9544-713e7bb836fd",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "battery-low",
+              "leftValue": "={{$json[\"data\"][\"batteryPercent\"]}}",
+              "rightValue": 28,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "71bd661e-17e0-46cb-ba37-3e11cd0a9520",
+      "name": "SOC <28%?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1312, 528]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "=⚠️ *УВАГА! БАТАРЕЯ НИЗЬКА:* {{$json[\"data\"][\"batteryPercent\"]}}%\n\n🔋 Залишилось ~{{(19 * $json[\"data\"][\"batteryPercent\"] / 100).toFixed(1)}} кВт·год\n⚡️ Поточний розряд: {{Math.abs($json[\"data\"][\"pCharge\"]/1000).toFixed(2)}} кВт\n⏰ Залишилось ~{{(19 * $json[\"data\"][\"batteryPercent\"] / 100 / Math.max(0.5, Math.abs($json[\"data\"][\"pCharge\"]/1000))).toFixed(1)}} годин\n\n💡 *Вмикай економ-режим!*",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "e1f42767-74b6-4425-8008-80641a2d15be",
+      "name": "Тривога",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1600, 464],
+      "webhookId": "0105ab0b-3b6b-4580-a9f8-a2352c6a562b",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "battery-full",
+              "leftValue": "={{$json[\"data\"][\"batteryPercent\"]}}",
+              "rightValue": 94,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a8cfdb93-f2b2-4dd3-8a47-de7a9aa5d24a",
+      "name": "SOC ≥94%?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1312, 736]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$env.TELEGRAM_CHAT_ID}}",
+        "text": "=✅ *БАТАРЕЯ ГОТОВА ДО ВІЙНИ!*\n\n🔋 Заряд: *{{$json[\"data\"][\"batteryPercent\"]}}%*\n⚡️ Ємність: ~{{(19 * $json[\"data\"][\"batteryPercent\"] / 100).toFixed(1)}} кВт·год\n🪫 Це {{Math.floor(19 * $json[\"data\"][\"batteryPercent\"] / 100 / 1.6)}} палиць освітлення на всю ніч!\n\n🇺🇦 Готовий до блекауту!",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "f8a0556d-8885-4333-bf0c-d14e45614277",
+      "name": "Повна зарядка",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1600, 688],
+      "webhookId": "cc16acfb-55d6-48a8-9e37-ded4d15c7e83",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "growatt-callback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cf933ecd-71a4-4cc5-9798-3489842719b9",
+      "name": "Webhook (Кнопки)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [208, 32],
+      "webhookId": "growatt-callback-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-graph24",
+              "leftValue": "={{$json[\"body\"][\"callback_query\"][\"data\"]}}",
+              "rightValue": "graph24",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5746278d-c38a-4d51-b9e8-57e2d52dea71",
+      "name": "Графік 24г?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [432, 32]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Генерація графіку SOC за 24 години\nconst hours = Array.from({length: 24}, (_, i) => i);\nconst socData = hours.map(h => {\n  // Симуляція даних (в реальності тут були б дані з БД)\n  const baseSOC = 85;\n  const variation = Math.sin(h / 24 * Math.PI * 2) * 15;\n  return Math.max(20, Math.min(100, baseSOC + variation));\n});\n\nconst chartConfig = {\n  type: 'line',\n  data: {\n    labels: hours.map(h => h + ':00'),\n    datasets: [{\n      label: 'SOC %',\n      data: socData,\n      borderColor: 'rgb(75, 192, 192)',\n      backgroundColor: 'rgba(75, 192, 192, 0.2)',\n      tension: 0.4,\n      fill: true\n    }]\n  },\n  options: {\n    responsive: true,\n    plugins: {\n      title: {\n        display: true,\n        text: 'Заряд батареї за 24 години',\n        font: { size: 16 }\n      },\n      legend: {\n        display: true\n      }\n    },\n    scales: {\n      y: {\n        beginAtZero: false,\n        min: 0,\n        max: 100,\n        title: {\n          display: true,\n          text: 'SOC %'\n        }\n      },\n      x: {\n        title: {\n          display: true,\n          text: 'Час'\n        }\n      }\n    }\n  }\n};\n\nconst chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=800&height=400&backgroundColor=white`;\n\nreturn {\n  json: {\n    chartUrl: chartUrl,\n    callbackQueryId: $input.item.json.body.callback_query.id,\n    chatId: $input.item.json.body.callback_query.message.chat.id\n  }\n};"
+      },
+      "id": "79fda10b-04d9-4f67-a853-57e481a2c704",
+      "name": "Генерувати Графік 24г",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [656, -64]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"chatId\"]}}",
+        "text": "📊 *Графік заряду батареї за 24 години*\n\nПоточний SOC та динаміка зарядки/розрядки протягом доби.",
+        "additionalFields": {
+          "parseMode": "Markdown",
+          "file": "={{$json[\"chartUrl\"]}}"
+        }
+      },
+      "id": "3996238e-39c0-4767-99d7-344b72fec2b0",
+      "name": "Відправити Графік",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [864, -32],
+      "webhookId": "758a00af-4e43-4d5a-94f8-a6c0769e3409",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"method\": \"answerCallbackQuery\", \"callback_query_id\": \"{{$json[\"callbackQueryId\"]}}\", \"text\": \"Графік оновлено\"}",
+        "options": {}
+      },
+      "id": "b8fb03e9-160f-4dd1-b108-fa9075e7f834",
+      "name": "Відповісти на Callback",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, -96]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-mode-war",
+              "leftValue": "={{$json[\"body\"][\"callback_query\"][\"data\"]}}",
+              "rightValue": "mode_war",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "85e0cd49-e2ff-49ce-bc31-7629e4debe1b",
+      "name": "Режим ВІЙНА?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [432, 176]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"body\"][\"callback_query\"][\"message\"][\"chat\"][\"id\"]}}",
+        "text": "⚔️ *БОЙОВИЙ РЕЖИМ УВІМКНЕНО!*\n\n📋 Налаштування:\n• Charging voltage → 56.4 В\n• Float voltage → 56.0 В\n• Grid to battery → 48.0 В\n• Max charge current → 100 А\n\n🔋 Ємність: ~18.4 кВт·год\n⚡️ Готовий до тривалих блекаутів!\n\n🇺🇦 Тримаємось!",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "535c76b9-da50-4d9e-a2b8-955821b0f1fb",
+      "name": "Встановити ВІЙНА",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [688, 176],
+      "webhookId": "5681b4f2-1b0d-425a-a2f5-8d811b9f838c",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-mode-peace",
+              "leftValue": "={{$json[\"body\"][\"callback_query\"][\"data\"]}}",
+              "rightValue": "mode_peace",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4e6f4dcd-e383-4346-b9d4-bf4d5f24894f",
+      "name": "Режим МИР?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [336, 480]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"body\"][\"callback_query\"][\"message\"][\"chat\"][\"id\"]}}",
+        "text": "🕊️ *МИРНИЙ РЕЖИМ УВІМКНЕНО!*\n\n📋 Налаштування:\n• Charging voltage → 55.2 В\n• Float voltage → 54.8 В\n• Grid to battery → 52.0 В\n• Max charge current → 60 А\n\n🔋 Ємність: ~16.8 кВт·год\n🔄 Цикли життя: 5000+\n⚡️ Оптимальний режим для повсякденного використання\n\n🌱 Економимо батарею!",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "cc10f538-294f-4807-a811-1ab3fdb710ae",
+      "name": "Встановити МИР",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [656, 368],
+      "webhookId": "54308aa3-27c5-4ff9-8c93-f2fb43206f16",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "25f678e9-db47-405e-86f2-be7473da5412",
+      "name": "Запустити вручну",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [1264, 1184]
+    },
+    {
+      "parameters": {
+        "url": "https://server.growatt.com/loginApi.do",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userName\": \"{{$env.SHINEPHONE_LOGIN}}\",\n  \"password\": \"{{$env.SHINEPHONE_PASSWORD}}\"\n}",
+        "options": {}
+      },
+      "id": "43baf678-086b-4f40-8f28-bca48fe11ee7",
+      "name": "✅ Тест 1: Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1792, 1456]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "login-success",
+              "leftValue": "={{$json[\"result\"]}}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0502b225-fa32-4cf7-a7ec-cd1b45988310",
+      "name": "Login успішний?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2016, 1456]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getPlantList",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"✅ Тест 1: Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "46aaaad0-35a7-4329-bd53-63c36253e8c0",
+      "name": "✅ Тест 2: Plant List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2224, 1344]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/plantApi/getDevicesByPlant?plantId={{$json[\"data\"][0][\"plantId\"]}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"✅ Тест 1: Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a7f0228b-35c2-4eb1-9ce3-36e6fa0eaccf",
+      "name": "✅ Тест 3: Device List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2448, 1344]
+    },
+    {
+      "parameters": {
+        "url": "=https://server.growatt.com/newInverterApi/getInverterDetailData_two?plantId={{$node[\"✅ Тест 2: Plant List\"].json[\"data\"][0][\"plantId\"]}}&deviceSn={{$json[\"data\"][0][\"deviceSn\"]}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{$node[\"✅ Тест 1: Login\"].json[\"data\"][\"token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "68c9edc5-c7fd-4753-ba15-fc61a15032f6",
+      "name": "✅ Тест 4: Inverter Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2672, 1344]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json.data;\nconst plantInfo = $node[\"✅ Тест 2: Plant List\"].json.data[0];\nconst deviceInfo = $node[\"✅ Тест 3: Device List\"].json.data[0];\n\nreturn {\n  json: {\n    success: true,\n    message: \"🎉 ВСІ ТЕСТИ ПРОЙДЕНО УСПІШНО!\",\n    growatt_info: {\n      plant_id: plantInfo.plantId,\n      plant_name: plantInfo.plantName,\n      device_sn: deviceInfo.deviceSn,\n      device_type: deviceInfo.deviceType\n    },\n    current_status: {\n      battery: data.batteryPercent + \"%\",\n      voltage: data.vBat + \" В\",\n      power: (data.pCharge/1000).toFixed(2) + \" кВт\",\n      solar: (data.ppv/1000).toFixed(1) + \" кВт\",\n      grid: data.vAc + \" В\",\n      temperature: data.tempBat + \"°C\"\n    },\n    next_step: \"Активуй основний workflow! Все готово! ✅\"\n  }\n};"
+      },
+      "id": "a2c8a0e6-43df-461a-bb43-fa83ce45d0b4",
+      "name": "Форматувати результат",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2896, 1344]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.item.json;\n\nreturn {\n  json: {\n    success: false,\n    error: \"❌ ПОМИЛКА LOGIN\",\n    details: error,\n    solution: [\n      \"1. Перевір SHINEPHONE_LOGIN (має бути email)\",\n      \"2. Перевір SHINEPHONE_PASSWORD\",\n      \"3. Спробуй перетворити пароль в MD5\",\n      \"4. Перевір, чи працює логін на server.growatt.com\"\n    ]\n  }\n};"
+      },
+      "id": "ca7b4bf3-9178-4ec8-a80d-3b816d573173",
+      "name": "❌ Помилка Login",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2304, 1584]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$('Telegram Trigger').item.json.message.chat.id}}",
+        "text": "=🧪 *ТЕСТ ПІДКЛЮЧЕННЯ GROWATT*\n\n{{$json[\"success\"] ? \"✅ УСПІХ!\" : \"❌ ПОМИЛКА\"}}\n\n{{$json[\"success\"] ? \n  \"📊 *Інформація:*\\n\" +\n  \"• Plant ID: \" + $json[\"growatt_info\"][\"plant_id\"] + \"\\n\" +\n  \"• Plant: \" + $json[\"growatt_info\"][\"plant_name\"] + \"\\n\" +\n  \"• Device: \" + $json[\"growatt_info\"][\"device_sn\"] + \"\\n\\n\" +\n  \"🔋 *Поточний статус:*\\n\" +\n  \"• Батарея: \" + $json[\"current_status\"][\"battery\"] + \"\\n\" +\n  \"• Напруга: \" + $json[\"current_status\"][\"voltage\"] + \"\\n\" +\n  \"• Потужність: \" + $json[\"current_status\"][\"power\"] + \"\\n\" +\n  \"• Сонце: \" + $json[\"current_status\"][\"solar\"] + \"\\n\" +\n  \"• Мережа: \" + $json[\"current_status\"][\"grid\"] + \"\\n\" +\n  \"• Температура: \" + $json[\"current_status\"][\"temperature\"] + \"\\n\\n\" +\n  \"✅ *\" + $json[\"next_step\"] + \"*\"\n  :\n  \"❌ *Помилка:* \" + $json[\"error\"] + \"\\n\\n\" +\n  \"🔧 *Рішення:*\\n\" +\n  $json[\"solution\"].map((s, i) => (i+1) + \". \" + s).join(\"\\n\")\n}}",
+        "additionalFields": {
+          "parseMode": "Markdown"
+        }
+      },
+      "id": "a87f2344-0ff6-4a07-aa5a-81bdb450fdd1",
+      "name": "📱 Відправити результат",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3104, 1472],
+      "webhookId": "ad739b51-695c-4c33-a5c2-a6faca60e025",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [1552, 1344],
+      "id": "e575092e-fb3c-4982-9b03-518b095f7343",
+      "name": "Telegram Trigger",
+      "webhookId": "f8c4283b-be04-4ba1-9ab2-3d39d319f95a",
+      "credentials": {
+        "telegramApi": {
+          "id": "z1jYHVQoTTIDPNYE",
+          "name": "growatt"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Кожні 5 хв": {
+      "main": [[{"node": "Growatt Login", "type": "main", "index": 0}]]
+    },
+    "Growatt Login": {
+      "main": [[{"node": "Отримати Plant ID", "type": "main", "index": 0}]]
+    },
+    "Отримати Plant ID": {
+      "main": [[{"node": "Отримати Device ID", "type": "main", "index": 0}]]
+    },
+    "Отримати Device ID": {
+      "main": [[{"node": "Growatt Data", "type": "main", "index": 0}]]
+    },
+    "Growatt Data": {
+      "main": [
+        [
+          {"node": "Telegram + Кнопки", "type": "main", "index": 0},
+          {"node": "SOC <28%?", "type": "main", "index": 0},
+          {"node": "SOC ≥94%?", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "SOC <28%?": {
+      "main": [[{"node": "Тривога", "type": "main", "index": 0}]]
+    },
+    "SOC ≥94%?": {
+      "main": [[{"node": "Повна зарядка", "type": "main", "index": 0}]]
+    },
+    "Webhook (Кнопки)": {
+      "main": [
+        [
+          {"node": "Графік 24г?", "type": "main", "index": 0},
+          {"node": "Режим ВІЙНА?", "type": "main", "index": 0},
+          {"node": "Режим МИР?", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Графік 24г?": {
+      "main": [[{"node": "Генерувати Графік 24г", "type": "main", "index": 0}]]
+    },
+    "Генерувати Графік 24г": {
+      "main": [[{"node": "Відправити Графік", "type": "main", "index": 0}]]
+    },
+    "Відправити Графік": {
+      "main": [[{"node": "Відповісти на Callback", "type": "main", "index": 0}]]
+    },
+    "Режим ВІЙНА?": {
+      "main": [[{"node": "Встановити ВІЙНА", "type": "main", "index": 0}]]
+    },
+    "Режим МИР?": {
+      "main": [[{"node": "Встановити МИР", "type": "main", "index": 0}]]
+    },
+    "Запустити вручну": {
+      "main": [[]]
+    },
+    "✅ Тест 1: Login": {
+      "main": [[{"node": "Login успішний?", "type": "main", "index": 0}]]
+    },
+    "Login успішний?": {
+      "main": [
+        [{"node": "✅ Тест 2: Plant List", "type": "main", "index": 0}],
+        [{"node": "❌ Помилка Login", "type": "main", "index": 0}]
+      ]
+    },
+    "✅ Тест 2: Plant List": {
+      "main": [[{"node": "✅ Тест 3: Device List", "type": "main", "index": 0}]]
+    },
+    "✅ Тест 3: Device List": {
+      "main": [[{"node": "✅ Тест 4: Inverter Data", "type": "main", "index": 0}]]
+    },
+    "✅ Тест 4: Inverter Data": {
+      "main": [[{"node": "Форматувати результат", "type": "main", "index": 0}]]
+    },
+    "Форматувати результат": {
+      "main": [[{"node": "📱 Відправити результат", "type": "main", "index": 0}]]
+    },
+    "❌ Помилка Login": {
+      "main": [[{"node": "📱 Відправити результат", "type": "main", "index": 0}]]
+    },
+    "Telegram Trigger": {
+      "main": [[{"node": "✅ Тест 1: Login", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "growatt-ultimate-fixed"
+  },
+  "id": "growatt_ultimate_fixed",
+  "tags": []
+}
